@@ -1,0 +1,12 @@
+C:\Users\dokxo\Documents\Cloudmex\Nativo-NFT-minter\target\wasm32-unknown-unknown\release\deps\sha2-a1691c3f9906430a.rmeta: C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\lib.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\consts.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256\soft.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512\soft.rs
+
+C:\Users\dokxo\Documents\Cloudmex\Nativo-NFT-minter\target\wasm32-unknown-unknown\release\deps\libsha2-a1691c3f9906430a.rlib: C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\lib.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\consts.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256\soft.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512\soft.rs
+
+C:\Users\dokxo\Documents\Cloudmex\Nativo-NFT-minter\target\wasm32-unknown-unknown\release\deps\sha2-a1691c3f9906430a.d: C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\lib.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\consts.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256\soft.rs C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512\soft.rs
+
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\lib.rs:
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\consts.rs:
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256.rs:
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512.rs:
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha256\soft.rs:
+C:\Users\dokxo\.cargo\registry\src\github.com-1ecc6299db9ec823\sha2-0.9.8\src\sha512\soft.rs:
