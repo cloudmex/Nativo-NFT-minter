@@ -129,7 +129,7 @@ trait NonFungibleToken {
     // change methods
     fn nft_mint_token_ext(&mut self,  token_owner_id: ValidAccountId,colecction:String,token_metadata: TokenMetadata);
     fn nft_mint_token(&mut self,  token_owner_id: ValidAccountId,colecction:String,token_metadata: TokenMetadata);
-
+    fn nft_buy_token_ext(&mut self,token_id:TokenId);
     // view method
     fn nft_token(&self, token_id: String) -> Option<Token>;
     fn get_on_total_toks(&self) -> u64;
@@ -257,7 +257,7 @@ impl Contract {
 
     pub fn my_method(&self) -> Promise {
         ext_nft::get_on_total_toks(
-            &"dev-1641514596273-99685459701992".to_string(), // ft_balance_of takes an account_id as a parameter
+            &"nativov2.near".to_string(), // ft_balance_of takes an account_id as a parameter
             0, // yocto NEAR to attach
             50_000_000_000_000 // gas to attach
         )
@@ -272,20 +272,40 @@ impl Contract {
             env::attached_deposit(), // yocto NEAR to attach
             30_000_000_000_000 // gas to attach
         )   .then(ext_self::getPromiseResult(
-            &"dev-1643331107973-95015694722073", // el mismo contrato local
+            &"nativov2.near", // el mismo contrato local
             0, // yocto NEAR a ajuntar al callback
             30_000_000_000_000 // gas a ajuntar al callback
         ));   
         log!("market ends here");
     p
     }
-    
+    #[payable]
+    pub fn market_buy_generic(& mut self,contractaddress: String,token_id: TokenId) -> Promise {
+     let p=ext_nft::nft_buy_token_ext(
+            token_id,
+            &contractaddress.to_string(), //  account_id as a parameter
+            env::attached_deposit(), // yocto NEAR to attach
+            30_000_000_000_000 // gas to attach
+        )   .then(ext_self::getPromiseResult(
+            &"nativov2.near", // el mismo contrato local
+            0, // yocto NEAR a ajuntar al callback
+            30_000_000_000_000 // gas a ajuntar al callback
+        ));   
+        log!("market ends here");
+    p
+    }
+    #[payable]
     pub fn Add_user_collection(&mut self,contr:ValidAccountId,addressowner:ValidAccountId,title:String,descrip:String)  {
        
 
         log!("{},{},{},{}",contr,addressowner,title,descrip);
     }
-    
+    #[payable]
+    pub fn saveBuyToTheGraph(&mut self,contr:ValidAccountId,addressowner:ValidAccountId,title:String,descrip:String)  {
+       
+
+        log!("{},{},{},{}",contr,addressowner,title,descrip);
+    }
     pub fn getPromiseResult(&self )  {
         assert_eq!(
             env::promise_results_count(),
@@ -302,7 +322,7 @@ impl Contract {
 
                  let p2 = ext_self::saveToTheGraph(
                     value.to_string(),
-                    &"dev-1643331107973-95015694722073",
+                    &"nativov2.near",
                     0,
                     10_000_000_000_000
                 ); 
