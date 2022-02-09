@@ -36,6 +36,8 @@ pub type Balance = u128;
 pub struct OldContract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
+    minter_account_id: AccountId,
+    market_account_id: AccountId,
     n_total_tokens: u64,
     n_token_on_sale: u64,
     n_token_on_auction: u64,
@@ -46,6 +48,8 @@ pub struct OldContract {
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize )]
 pub struct Contract {
+    minter_account_id: AccountId,
+    market_account_id: AccountId,
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
     n_total_tokens: u64,
@@ -161,6 +165,8 @@ impl Default for Contract {
 
          ) ,
          metadata: LazyOption::new(StorageKey::Metadata, Some(&meta)),
+         minter_account_id: "ntv-mint.near".to_string(),
+         market_account_id: "nativov2.near".to_string(),
          n_total_tokens: 0,
          n_token_on_sale: 0,
          n_token_on_auction: 0,
@@ -189,9 +195,11 @@ impl Contract {
     // Esta función incializa el contrato con los valores especificados en la metadata
 
     #[init]
-    pub fn new_default_meta(owner_id: ValidAccountId) -> Self {
+    pub fn new_default_meta(owner_id: ValidAccountId, minter_account_id: AccountId, market_account_id: AccountId,) -> Self {
         Self::new(
             owner_id,
+            minter_account_id,
+            market_account_id,
             NFTContractMetadata {
                 spec: NFT_METADATA_SPEC.to_string(),
                 name: "Nativo NFT".to_string(),
@@ -205,7 +213,7 @@ impl Contract {
     }
 
     #[init]
-    pub fn new(owner_id: ValidAccountId, metadata: NFTContractMetadata) -> Self {
+    pub fn new(owner_id: ValidAccountId, market_account_id: AccountId, minter_account_id: AccountId,  metadata: NFTContractMetadata) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         Self {
@@ -217,6 +225,8 @@ impl Contract {
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
+            market_account_id: market_account_id,
+            minter_account_id: minter_account_id,
             n_total_tokens: 0,
             n_token_on_sale: 0,
             n_token_on_auction: 0,
@@ -255,8 +265,8 @@ impl Contract {
   /// ///////////////////////////////////CREACION DE TOKENS
     #[payable]
     pub fn nft_mint_token(&mut self,token_owner_id: ValidAccountId,colecction:String,token_metadata: TokenMetadata) ->String    {
-        let Contractaccount: AccountId = "nativov2.near".parse().unwrap();
-        let  account: ValidAccountId = Contractaccount.clone().try_into().unwrap();
+        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        let  minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
        
        let token_id: TokenId =self.n_total_tokens.to_string();
        let mut info:Vec<String>=Vec::new();
@@ -267,12 +277,12 @@ impl Contract {
             );
             let mined= self.tokens.mint(
             token_id.clone(),
-            account.clone(),    
+            minter_account.clone(),    
             Some(token_metadata.clone())
         );  
         
         self.tokens
-        .internal_transfer_unguarded(&token_id, &Contractaccount.to_string(), &token_owner_id.to_string());
+        .internal_transfer_unguarded(&token_id, &minter_account.to_string(), &token_owner_id.to_string());
       
         self.n_total_tokens  +=1;
         self.n_token_on_sale += 1;
@@ -288,7 +298,7 @@ impl Contract {
 
           
           let mut graphdata = Thegraphstructure {
-            contract_name: account.clone().to_string(),
+            contract_name: minter_account.clone().to_string(),
             colecction:colecction.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : extradatajson.creator.to_string(),
@@ -313,7 +323,7 @@ impl Contract {
     
      let p = ext_nft::saveToTheGraph(
         rett.clone(),
-        &"ntv-mint.near".to_string(), //  account_id as a parameter
+        &market_account.to_string(), //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
         25_000_000_000_000 // gas to attach
      );
@@ -322,8 +332,8 @@ impl Contract {
     }
     #[payable]
     pub fn nft_mint_token_ext(&mut self,token_owner_id: ValidAccountId,colecction:String,token_metadata: TokenMetadata) ->String     {
-        let Contractaccount: AccountId = "nativov2.near".parse().unwrap();
-        let  account: ValidAccountId = Contractaccount.clone().try_into().unwrap();
+        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        let  minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
        
        let token_id: TokenId =self.n_total_tokens.to_string();
        let mut info:Vec<String>=Vec::new();
@@ -334,12 +344,12 @@ impl Contract {
             );
             let mined= self.tokens.mint(
             token_id.clone(),
-            account.clone(),    
+            minter_account.clone(),    
             Some(token_metadata.clone())
         );  
         
         self.tokens
-        .internal_transfer_unguarded(&token_id, &Contractaccount.to_string(), &token_owner_id.to_string());
+        .internal_transfer_unguarded(&token_id, &minter_account.to_string(), &token_owner_id.to_string());
       
         self.n_total_tokens  +=1;
         self.n_token_on_sale += 1;
@@ -355,7 +365,7 @@ impl Contract {
 
           
           let mut graphdata = Thegraphstructure {
-            contract_name: account.clone().to_string(),
+            contract_name: minter_account.clone().to_string(),
             colecction:colecction.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : extradatajson.creator.to_string(),
@@ -2123,7 +2133,8 @@ impl Contract {
         let old_state: OldContract = env::state_read().expect("failed");
         log!("old state readed {}", old_state.n_total_tokens);
         Self {
-           
+            minter_account_id:old_state.minter_account_id,
+            market_account_id:old_state.market_account_id,
             tokens:old_state.tokens,
             metadata: old_state.metadata,
             n_total_tokens:old_state.n_total_tokens,
