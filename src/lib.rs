@@ -6,22 +6,27 @@ use near_contract_standards::non_fungible_token::metadata::{
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use std::sync::{Mutex};
-use lazy_static::lazy_static;
 use near_sdk::collections::LazyOption;
-use substring::Substring;
 
-use near_sdk::json_types::{ValidAccountId,Base64VecU8};
+use near_sdk::json_types::{ValidAccountId};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    env, log, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,Gas,ext_contract
+    env, log, near_bindgen, AccountId, BorshStorageKey, Promise, PromiseOrValue,Gas,ext_contract
 };
-use serde_json::json;
+// use serde_json::json;
 use std::convert::TryInto;
+
+use near_sdk::env::BLOCKCHAIN_INTERFACE;
 
 near_sdk::setup_alloc!();
 /// Balance is type for storing amounts of tokens.
 pub type Balance = u128;
+
+pub const TGAS: u64 = 1_000_000_000_000;
+/// Gas for upgrading this contract on promise creation + deploying new contract.
+pub const GAS_FOR_UPGRADE_SELF_DEPLOY: Gas = 30_000_000_000_000;
+
+pub const GAS_FOR_UPGRADE_REMOTE_DEPLOY: Gas = 10_000_000_000_000;
  
 #[derive(BorshDeserialize, BorshSerialize )]
 pub struct OldContract {
@@ -32,9 +37,6 @@ pub struct OldContract {
     n_total_tokens: u64,
     n_token_on_sale: u64,
     n_token_on_auction: u64,
-    n_chunks: u64,
-    tokenHM:HashMap<TokenId, Vec<String>>,
-    tk_chunk:Vec<HashMap<TokenId, Vec<String>>>,
 }
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize )]
@@ -46,9 +48,6 @@ pub struct Contract {
     n_total_tokens: u64,
     n_token_on_sale: u64,
     n_token_on_auction: u64,
-    n_chunks: u64,
-    tokenHM:HashMap<TokenId, Vec<String>>,
-    tk_chunk:Vec<HashMap<TokenId, Vec<String>>>,
 }
  
 #[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
@@ -102,24 +101,15 @@ pub struct Extras {
     expires_at: String,
     starts_at: String,
 }
- 
-lazy_static! {
-    static ref USER_TOKEN_HASHMAP: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-    static ref CONV_MAP: HashMap<String, String> = {
-        let mut map = HashMap::new();
-        
-        map
-    };
-   
-
-}
 
 //aqui van los nombres de los metodos que mandaremos llamar
 #[ext_contract(ext_nft)]
 trait NonFungibleToken {
     // view method
-    fn getPromiseResult(&self  ) ;
-    fn saveToTheGraph(&self, info: String) ;
+    fn save_mint_ttg(&self,info : String);
+    fn save_buy_ttg(&self,info : String);
+    fn save_sell_ttg(&self,info : String);
+    fn save_remove_ttg(&self,info : String);
 
 }
 
@@ -147,14 +137,11 @@ impl Default for Contract {
 
          ) ,
          metadata: LazyOption::new(StorageKey::Metadata, Some(&meta)),
-         minter_account_id: "dev-1644523323613-61099606761670".to_string(),
-         market_account_id: "dev-1644433845094-13612285357489".to_string(),
+         minter_account_id: "dev-1645120562893-85925146475611".to_string(),
+         market_account_id: "dev-1645043961189-94216357988452".to_string(),
          n_total_tokens: 0,
          n_token_on_sale: 0,
          n_token_on_auction: 0,
-         n_chunks: 0,
-         tokenHM:HashMap::new(),
-         tk_chunk:Vec::new(),
          
      }   }
 }
@@ -212,9 +199,6 @@ impl Contract {
             n_total_tokens: 0,
             n_token_on_sale: 0,
             n_token_on_auction: 0,
-            n_chunks: 0,
-            tokenHM:HashMap::new(),
-            tk_chunk:Vec::new(),
         }
     }
     
@@ -248,9 +232,15 @@ impl Contract {
         let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
         let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
        
-       let token_id: TokenId =self.n_total_tokens.to_string();
-       let mut info:Vec<String>=Vec::new();
-       assert_eq!(
+        let token_id: TokenId =self.n_total_tokens.to_string();
+        
+        assert_eq!(
+            collection != "",
+            true,
+            "Coleccion vacia "
+                );
+
+        assert_eq!(
         token_metadata.media != None,
         true,
         "media del token vacia "
@@ -295,7 +285,7 @@ impl Contract {
         
      let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
     
-     let p = ext_nft::saveToTheGraph(
+     let p = ext_nft::save_mint_ttg(
         rett.clone(),
         &market_account.to_string(), //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
@@ -311,6 +301,13 @@ impl Contract {
        
        let token_id: TokenId =self.n_total_tokens.to_string();
        let mut info:Vec<String>=Vec::new();
+
+       assert_eq!(
+        collection != "",
+        true,
+        "Coleccion vacia "
+            );
+
        assert_eq!(
         token_metadata.media != None,
         true,
@@ -472,7 +469,7 @@ impl Contract {
         
      let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
     
-     let p = ext_nft::saveToTheGraph(
+     let p = ext_nft::save_buy_ttg(
         rett.clone(),
         &market_account.to_string(), //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
@@ -535,8 +532,6 @@ impl Contract {
          roy = amount as f64 *0.10;
          gains=amount as f64 *0.03;
          pay=amount as f64 *0.87;
-
-     //   log!("{}",&originaltoken.extra.as_ref().unwrap().to_string());
        
         //cambiar la metadata        
         //se  reemplaza los ' por \" en un string plano                "'", "\""
@@ -672,7 +667,7 @@ impl Contract {
         
      let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
     
-     let p = ext_nft::saveToTheGraph(
+     let p = ext_nft::save_sell_ttg(
         rett.clone(),
         &market_account.to_string(), //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
@@ -722,7 +717,7 @@ impl Contract {
         // se convierte el Json a un String plano
         let extradatajsontostring  = serde_json::to_string(&extradatajson).unwrap();          // se  reemplaza los " por \' en un string plano
         let finalextrajson = str::replace(&extradatajsontostring.to_string(),"\"","'");
-      //    log!("{}",&finalextrajson.to_string());
+      
         originaltoken.extra = Some(finalextrajson);
         //remplazamos la metadata
         self.tokens
@@ -819,9 +814,6 @@ impl Contract {
             true,
             "no eres el dueño del token "
         );
-
-
-
          //obtener los metadatos de ese token
          let mut originaltoken = self
          .tokens
@@ -876,7 +868,7 @@ impl Contract {
         
      let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
     
-     let p = ext_nft::saveToTheGraph(
+     let p = ext_nft::save_remove_ttg(
         rett.clone(),
         &market_account.to_string(), //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
@@ -904,9 +896,6 @@ impl Contract {
             true,
             "no eres el dueño del token "
         );
-
-
-
          //obtener los metadatos de ese token
          let mut originaltoken = self
          .tokens
@@ -965,7 +954,6 @@ impl Contract {
     }
 
     pub fn get_token(&self, token_id: TokenId) -> Meta {
-        
         let mut metadata = self
             .tokens
             .token_metadata_by_id
@@ -981,8 +969,6 @@ impl Contract {
             title : metadata.title.as_ref().unwrap().to_string(),
             description : metadata.description.as_ref().unwrap().to_string(),
             media : metadata.media.unwrap_or_default().to_string(),
-            //culture : extradatajson.culture,
-            //country : extradatajson.country,
             tags: extradatajson.tags,
             creator : extradatajson.creator,
             price : extradatajson.price,
@@ -1007,15 +993,12 @@ impl Contract {
     pub fn get_on_auction_toks(&self) -> u64 {
         self.n_token_on_auction
     }
-    pub fn get_n_in_chuck(&self,chunk:usize) -> usize {
-        return  self.tk_chunk[chunk].len() ;
-      }
     pub fn storage_byte_cost() -> Balance {
         env::storage_byte_cost()
     }
     //////////////// CONTADORES TOTALES
     
-    pub fn update_token(&mut self, token_id: TokenId, extra: String) -> TokenMetadata {
+     fn update_token(&mut self, token_id: TokenId, extra: String) -> TokenMetadata {
         //assert!(!env::state_exists(), "Already initialized");
         let mut metadata = self
             .tokens
@@ -1033,6 +1016,61 @@ impl Contract {
         metadata
     }
 
+    // pub fn hello(&self) -> String {
+    //     "Hello".to_string()
+    // }
+
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn upgrade(self) {
+        // assert!(env::predecessor_account_id() == self.minter_account_id);
+        //input is code:<Vec<u8> on REGISTER 0
+        //log!("bytes.length {}", code.unwrap().len());
+        const GAS_FOR_UPGRADE: u64 = 20 * TGAS; //gas occupied by this fn
+        const BLOCKCHAIN_INTERFACE_NOT_SET_ERR: &str = "Blockchain interface not set.";
+        //after upgrade we call *pub fn migrate()* on the NEW CODE
+        let current_id = env::current_account_id().into_bytes();
+        let migrate_method_name = "migrate".as_bytes().to_vec();
+        let attached_gas = env::prepaid_gas() - env::used_gas() - GAS_FOR_UPGRADE;
+        unsafe {
+            BLOCKCHAIN_INTERFACE.with(|b| {
+                // Load input (new contract code) into register 0
+                b.borrow()
+                    .as_ref()
+                    .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
+                    .input(0);
+
+                //prepare self-call promise
+                let promise_id = b
+                    .borrow()
+                    .as_ref()
+                    .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
+                    .promise_batch_create(current_id.len() as _, current_id.as_ptr() as _);
+
+                //1st action, deploy/upgrade code (takes code from register 0)
+                b.borrow()
+                    .as_ref()
+                    .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
+                    .promise_batch_action_deploy_contract(promise_id, u64::MAX as _, 0);
+
+                // 2nd action, schedule a call to "migrate()".
+                // Will execute on the **new code**
+                // b.borrow()
+                //     .as_ref()
+                //     .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
+                //     .promise_batch_action_function_call(
+                //         promise_id,
+                //         migrate_method_name.len() as _,
+                //         migrate_method_name.as_ptr() as _,
+                //         0 as _,
+                //         0 as _,
+                //         0 as _,
+                //         attached_gas,
+                //     );
+            });
+        }
+    }
+
 /////////////////////METODOS DE MIGRACIÖN
  
     #[private]
@@ -1048,14 +1086,11 @@ impl Contract {
             n_total_tokens:old_state.n_total_tokens,
             n_token_on_sale: old_state.n_token_on_sale,
             n_token_on_auction:old_state.n_token_on_auction,
-            n_chunks: old_state.n_chunks,
-            tokenHM:old_state.tokenHM,
-            tk_chunk:old_state.tk_chunk,
-
         }
     }
 /////////////////////METODOS DE MIGRACIÖN
 }
+
 
 near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
