@@ -13,9 +13,7 @@ use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
     env, log, near_bindgen, AccountId, BorshStorageKey, Promise, PromiseOrValue,Gas,ext_contract
 };
-// use serde_json::json;
 use std::convert::TryInto;
-
 use near_sdk::env::BLOCKCHAIN_INTERFACE;
 
 near_sdk::setup_alloc!();
@@ -27,13 +25,14 @@ pub const TGAS: u64 = 1_000_000_000_000;
 pub const GAS_FOR_UPGRADE_SELF_DEPLOY: Gas = 30_000_000_000_000;
 
 pub const GAS_FOR_UPGRADE_REMOTE_DEPLOY: Gas = 10_000_000_000_000;
+
+const NATIVO_ACCOUNT: &str = "dev-1645131307264-12534700376687";
+const MARKET_ACCOUNT: &str = "dev-1645131376413-69111001778844";
  
 #[derive(BorshDeserialize, BorshSerialize )]
 pub struct OldContract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
-    minter_account_id: AccountId,
-    market_account_id: AccountId,
     n_total_tokens: u64,
     n_token_on_sale: u64,
     n_token_on_auction: u64,
@@ -41,8 +40,6 @@ pub struct OldContract {
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize )]
 pub struct Contract {
-    minter_account_id: AccountId,
-    market_account_id: AccountId,
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
     n_total_tokens: u64,
@@ -73,6 +70,7 @@ pub struct Meta {
 pub struct Thegraphstructure {
     contract_name:String,
     collection:String,
+    collection_id:String,
     token_id : String,
     owner_id : String,
     title : String,
@@ -137,8 +135,6 @@ impl Default for Contract {
 
          ) ,
          metadata: LazyOption::new(StorageKey::Metadata, Some(&meta)),
-         minter_account_id: "dev-1645120562893-85925146475611".to_string(),
-         market_account_id: "dev-1645043961189-94216357988452".to_string(),
          n_total_tokens: 0,
          n_token_on_sale: 0,
          n_token_on_auction: 0,
@@ -194,8 +190,6 @@ impl Contract {
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
-            market_account_id: market_account_id,
-            minter_account_id: minter_account_id,
             n_total_tokens: 0,
             n_token_on_sale: 0,
             n_token_on_auction: 0,
@@ -228,9 +222,9 @@ impl Contract {
 
   /// ///////////////////////////////////CREACION DE TOKENS
     #[payable]
-    pub fn mint_token(&mut self,token_owner_id: ValidAccountId,collection:String,token_metadata: TokenMetadata) ->String    {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn mint_token(&mut self,token_owner_id: ValidAccountId,collection_id:String,collection:String,token_metadata: TokenMetadata) ->String    {
+        //let market_account: AccountId = self.market_account_id.clone().try_into().unwrap();
+       // let minter_account: ValidAccountId = &NATIVO_ACCOUNT.to_string();
        
         let token_id: TokenId =self.n_total_tokens.to_string();
         
@@ -247,12 +241,12 @@ impl Contract {
             );
             let mined= self.tokens.mint(
             token_id.clone(),
-            minter_account.clone(),    
+            token_owner_id.clone(),    
             Some(token_metadata.clone())
         );  
         
-        self.tokens
-        .internal_transfer_unguarded(&token_id, &minter_account.to_string(), &token_owner_id.to_string());
+        // self.tokens
+        // .internal_transfer_unguarded(&token_id, &token_owner_id.to_string(), &token_owner_id.to_string());
       
         self.n_total_tokens  +=1;
         self.n_token_on_sale += 1;
@@ -264,8 +258,9 @@ impl Contract {
        let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : extradatajson.creator.to_string(),
             title : token_metadata.title.as_ref().unwrap().to_string(),
@@ -283,11 +278,11 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
     
      let p = ext_nft::save_mint_ttg(
         rett.clone(),
-        &market_account.to_string(), //  account_id as a parameter
+        &MARKET_ACCOUNT, //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
         25_000_000_000_000 // gas to attach
      );
@@ -295,9 +290,9 @@ impl Contract {
     return rett;    
     }
     #[payable]
-    pub fn mint_token_ext(&mut self,token_owner_id: ValidAccountId,collection:String,token_metadata: TokenMetadata) ->String     {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn mint_token_ext(&mut self,token_owner_id: ValidAccountId,collection_id: String,collection:String,token_metadata: TokenMetadata) ->String     {
+        //let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        //let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
        
        let token_id: TokenId =self.n_total_tokens.to_string();
        let mut info:Vec<String>=Vec::new();
@@ -315,12 +310,12 @@ impl Contract {
             );
             let mined= self.tokens.mint(
             token_id.clone(),
-            minter_account.clone(),    
+            token_owner_id.clone(),    
             Some(token_metadata.clone())
         );  
         
-        self.tokens
-        .internal_transfer_unguarded(&token_id, &minter_account.to_string(), &token_owner_id.to_string());
+        // self.tokens
+        // .internal_transfer_unguarded(&token_id, &minter_account.to_string(), &token_owner_id.to_string());
       
         self.n_total_tokens  +=1;
         self.n_token_on_sale += 1;
@@ -332,8 +327,9 @@ impl Contract {
        let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection: collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : extradatajson.creator.to_string(),
             title : token_metadata.title.as_ref().unwrap().to_string(),
@@ -351,7 +347,7 @@ impl Contract {
             
         };  
            
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string();
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string();
 
      return rett;
     }
@@ -359,9 +355,9 @@ impl Contract {
     
     //////////////////////////////////////COMPRA/VENTA DE TOKENS
     #[payable]
-    pub fn buy_token(&mut self, token_id: TokenId, collection: String) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn buy_token(&mut self, token_id: TokenId,collection_id: String, collection: String) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
 
         //asegurarnos de que el numero sea positivo y este dentro el rango de tokens minados
         //let token_id_u64 = token_id.parse::<u64>().unwrap();
@@ -437,7 +433,7 @@ impl Contract {
         //TODO: transferir la regalia del token
         Promise::new(creator_id.clone()).transfer(roy as u128);
         //TODO: transferir la regalia del token
-        Promise::new(market_account.clone().to_string()).transfer(gains as u128);
+        Promise::new(MARKET_ACCOUNT.to_string()).transfer(gains as u128);
         //transferir el nft
         self.tokens
             .internal_transfer_unguarded(&token_id, &owner_value.to_string(), buyer_id);
@@ -448,8 +444,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : buyer_id.to_string(),
             title : "".to_string(),
@@ -467,11 +464,11 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
     
      let p = ext_nft::save_buy_ttg(
         rett.clone(),
-        &market_account.to_string(), //  account_id as a parameter
+        &MARKET_ACCOUNT, //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
         25_000_000_000_000 // gas to attach
      );
@@ -480,9 +477,9 @@ impl Contract {
     }
 
     #[payable]
-    pub fn buy_token_ext(&mut self, token_id: TokenId, collection:String) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn buy_token_ext(&mut self, token_id: TokenId,collection_id:String, collection:String) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
 
         //asegurarnos de que el numero sea positivo y este dentro el rango de tokens minados
         //let token_id_u64 = token_id.parse::<u64>().unwrap();
@@ -558,7 +555,7 @@ impl Contract {
         //TODO: transferir la regalia del token
         Promise::new(creator_id.clone()).transfer(roy as u128);
         //TODO: transferir la regalia del token
-        Promise::new(market_account.clone().to_string()).transfer(gains as u128);
+        Promise::new(MARKET_ACCOUNT.to_string()).transfer(gains as u128);
         //transferir el nft
         self.tokens
             .internal_transfer_unguarded(&token_id, &owner_value.to_string(), buyer_id);
@@ -569,8 +566,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
          
         let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection: collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : buyer_id.to_string(),
             title : "".to_string(),
@@ -588,14 +586,14 @@ impl Contract {
             
         };  
         
-        let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string();
+        let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string();
         
     return rett;
     }
    
-    pub fn sell_token(&mut self, token_id: TokenId, price: String, collection: String ) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn sell_token(&mut self, token_id: TokenId, price: String,collection_id:String, collection: String ) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
         //comprobar que el token exista
         assert_eq!(
             token_id.trim().parse::<u64>().unwrap() <= self.tokens.owner_by_id.len(),
@@ -646,8 +644,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : owner_id.to_string(),
             title : "".to_string(),
@@ -665,11 +664,11 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
     
      let p = ext_nft::save_sell_ttg(
         rett.clone(),
-        &market_account.to_string(), //  account_id as a parameter
+        &MARKET_ACCOUNT, //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
         25_000_000_000_000 // gas to attach
      );
@@ -677,10 +676,10 @@ impl Contract {
     return rett;
     }
 
-    pub fn sell_token_ext(&mut self, token_id: TokenId, price: String, collection: String ) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
-        //comprobar que el token exista
+    pub fn sell_token_ext(&mut self, token_id: TokenId, price: String,collection_id:String, collection: String ) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+        // //comprobar que el token exista
         assert_eq!(
             token_id.trim().parse::<u64>().unwrap() <= self.tokens.owner_by_id.len(),
             true,
@@ -730,8 +729,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : owner_id.to_string(),
             title : "".to_string(),
@@ -749,7 +749,7 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string();
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string();
 
     return rett;
     }
@@ -796,9 +796,9 @@ impl Contract {
             self.tokens.nft_approve(token_id.clone(),account.clone(),msj.clone());
     }
       
-    pub fn remove_token(&mut self, token_id: TokenId, collection: String) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn remove_token(&mut self, token_id: TokenId, collection_id:String, collection: String) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
 
         //comprobar que el token exista
         assert_eq!(
@@ -847,8 +847,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : owner_id.to_string(),
             title : "".to_string(),
@@ -866,11 +867,11 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string(); 
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
     
      let p = ext_nft::save_remove_ttg(
         rett.clone(),
-        &market_account.to_string(), //  account_id as a parameter
+        &MARKET_ACCOUNT, //  account_id as a parameter
         env::attached_deposit(), // yocto NEAR to attach
         25_000_000_000_000 // gas to attach
      );
@@ -878,9 +879,9 @@ impl Contract {
     return rett;
     }
 
-    pub fn remove_token_ext(&mut self, token_id: TokenId, collection: String) -> String {
-        let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
-        let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
+    pub fn remove_token_ext(&mut self, token_id: TokenId,collection_id:String, collection: String) -> String {
+        // let market_account: ValidAccountId = self.market_account_id.clone().try_into().unwrap();
+        // let minter_account: ValidAccountId = self.minter_account_id.clone().try_into().unwrap();
 
         //comprobar que el token exista
         assert_eq!(
@@ -929,8 +930,9 @@ impl Contract {
         let ext : String  ="".to_string()+&extradatajson.tags.to_string();
           
           let mut graphdata = Thegraphstructure {
-            contract_name: minter_account.clone().to_string(),
+            contract_name: NATIVO_ACCOUNT.to_string(),
             collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
             token_id : token_id.to_string(),
             owner_id : owner_id.to_string(),
             title : "".to_string(),
@@ -948,7 +950,7 @@ impl Contract {
             
         };  
         
-     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string();
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string();
 
     return rett;
     }
@@ -1055,18 +1057,18 @@ impl Contract {
 
                 // 2nd action, schedule a call to "migrate()".
                 // Will execute on the **new code**
-                // b.borrow()
-                //     .as_ref()
-                //     .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
-                //     .promise_batch_action_function_call(
-                //         promise_id,
-                //         migrate_method_name.len() as _,
-                //         migrate_method_name.as_ptr() as _,
-                //         0 as _,
-                //         0 as _,
-                //         0 as _,
-                //         attached_gas,
-                //     );
+                b.borrow()
+                    .as_ref()
+                    .expect(BLOCKCHAIN_INTERFACE_NOT_SET_ERR)
+                    .promise_batch_action_function_call(
+                        promise_id,
+                        migrate_method_name.len() as _,
+                        migrate_method_name.as_ptr() as _,
+                        0 as _,
+                        0 as _,
+                        0 as _,
+                        attached_gas,
+                    );
             });
         }
     }
@@ -1079,8 +1081,6 @@ impl Contract {
         let old_state: OldContract = env::state_read().expect("failed");
         log!("old state readed {}", old_state.n_total_tokens);
         Self {
-            minter_account_id:old_state.minter_account_id,
-            market_account_id:old_state.market_account_id,
             tokens:old_state.tokens,
             metadata: old_state.metadata,
             n_total_tokens:old_state.n_total_tokens,
