@@ -332,6 +332,27 @@ pub fn get_ids_onsale(&self,tokens:u64) ->  Vec<u64> {
        vectIDs
    }
 
+    /*
+        pub fn update_token(&mut self, token_id: TokenId, extra: String) -> TokenMetadata {
+        //assert!(!env::state_exists(), "Already initialized");
+        let mut metadata = self
+            .tokens
+            .token_metadata_by_id
+            .as_ref()
+            .and_then(|by_id| by_id.get(&token_id))
+            .unwrap();
+        let _owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        //assert_eq!(owner_id!= env::signer_account_id() && owner != ,false,"");
+        metadata.extra = Some(extra);
+        self.tokens
+            .token_metadata_by_id
+            .as_mut()
+            .and_then(|by_id| by_id.insert(&token_id, &metadata));
+        metadata
+    }
+
+    
+    */
    
      /* fn update_token(&mut self, token_id: TokenId, extra: String) -> TokenMetadata {
         //assert!(!env::state_exists(), "Already initialized");
