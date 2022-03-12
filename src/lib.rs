@@ -650,7 +650,6 @@ impl Contract {
             let  account: ValidAccountId = contractaccount.clone().try_into().unwrap(); 
             let msj: Option<String> = Some("withdraw succesfully,enjoy it! :)".to_string());
             //let msj2: String = Some("withdraw succesfully,enjoy it! :)".to_string());
-             //   self.tokens.nft_approve(token_id.clone(),account.clone(),msj.clone());
             self.tokens.nft_transfer_call(account, token_id, None,msj, "".to_string());
         //   log!("transfer done");
     }
