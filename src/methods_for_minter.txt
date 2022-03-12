@@ -1,0 +1,338 @@
+
+//METODO PARA MINAR 
+#[payable]
+    pub fn mint_token(&mut self,token_owner_id: ValidAccountId,collection_id:String,collection:String,token_metadata: TokenMetadata) ->String    {
+        
+        let token_id: TokenId =self.n_total_tokens.to_string();
+        
+        assert_eq!(
+            collection != "",
+            true,
+            "Coleccion vacia "
+                );
+
+        assert_eq!(
+            token_metadata.media != None,
+            true,
+            "media del token vacia "
+        );
+        log!("Before \n{:?}\n{:?}", env::prepaid_gas(), env::used_gas());
+            let _mined= self.tokens.mint(
+            token_id.clone(),
+            token_owner_id.clone(),    
+            Some(token_metadata.clone()),
+        );
+        log!("After \n{:?}\n{:?}", env::prepaid_gas(), env::used_gas());
+
+        self.n_total_tokens  +=1;
+        self.n_token_on_sale += 1;
+
+        let newextradata = str::replace(&token_metadata.extra.as_ref().unwrap().to_string(), "'", "\"");
+        let extradatajson: Extras = serde_json::from_str(&newextradata).unwrap();  
+       
+        let ext : String  ="".to_string()+&extradatajson.tags.to_string();
+          
+        let graphdata = Thegraphstructure {
+            contract_name: NATIVO_ACCOUNT.to_string(),
+            collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
+            token_id : token_id.to_string(),
+            owner_id : extradatajson.creator.to_string(),
+            title : token_metadata.title.as_ref().unwrap().to_string(),
+            description : token_metadata.description.as_ref().unwrap().to_string(),
+            media : token_metadata.media.as_ref().unwrap().to_string(),
+            creator : extradatajson.creator.to_string(),
+            price : extradatajson.price.to_string(),
+            status: "S".to_string(), // sale status PENDIENTE
+            adressbidder: extradatajson.adressbidder.to_string(),
+            highestbid: extradatajson.highestbidder.to_string(),
+            lowestbid: extradatajson.lowestbidder.to_string(),
+            expires_at: extradatajson.expires_at.to_string(),
+            starts_at: extradatajson.starts_at.to_string(),
+            extra: ext  ,
+            
+        };  
+        let rett = serde_json::to_string(&graphdata).unwrap();
+        
+        log!("Before market \n{:?}\n{:?}", env::prepaid_gas(), env::used_gas());
+        let _p = ext_nft::save_mint_ttg(
+        rett.clone(),
+        &MARKET_ACCOUNT, //  account_id as a parameter
+        env::attached_deposit(), // yocto NEAR to attach
+        25_000_000_000_000 // gas to attach
+        );
+
+    return rett;    
+    }
+
+    //////////// METODO PARA COMPRAR 
+
+    #[payable]
+    pub fn buy_token(&mut self, token_id: TokenId,collection_id: String, collection: String) -> String {
+        //asegurarnos de que el numero sea positivo y este dentro el rango de tokens minados
+        //let token_id_u64 = token_id.parse::<u64>().unwrap();
+        assert_eq!(
+            token_id.trim().parse::<u64>().unwrap() <= self.tokens.owner_by_id.len(),
+            true,
+            "ese token no existe "
+        );
+        //obtener los metadatos de ese token
+        let mut originaltoken = self
+            .tokens
+            .token_metadata_by_id.as_ref()
+            .and_then(|by_id| by_id.get(&token_id))
+            .unwrap();
+            
+        let owner_id = self.tokens.owner_by_id.get(&token_id);
+        let owner_value = owner_id.as_deref().unwrap_or("default string");
+        let metadataextra = Contract::get_token(self, token_id.clone());
+      
+        let amount = env::attached_deposit();
+        assert_eq!(
+            metadataextra.price.parse::<u128>().unwrap(),
+            amount,
+            "Cantidad incorrecta,verifica el costo exacto!"
+        );
+        assert_eq!(
+            metadataextra.status,
+            "S".to_string(), 
+            "no esta a la venta"
+        );
+
+        //obtener el creador del token
+        let creator_id = metadataextra.creator;
+        //obtener el comprador del token
+        let buyer_id = &env::signer_account_id();
+
+        // el dueñp no puede comprar su propio token
+        assert_eq!(buyer_id == &owner_value, false, "eres el dueño del token ");
+         //obtener la regalia,la comision de Nativo y el pagoa al autor del token
+         let roy:f64 = amount as f64 *0.10;
+         let gains:f64 = amount as f64 *0.03;
+         let pay:f64 = amount as f64 *0.87;
+       
+        //cambiar la metadata
+        //se  reemplaza los ' por \" en un string plano                "'", "\""
+        let newextradata = str::replace(&originaltoken.extra.as_ref().unwrap().to_string(), "'", "\"");
+        //el string plano se convierte a JSon
+        let mut extradatajson: Extras = serde_json::from_str(&newextradata).unwrap();   
+        //Se modifica el json
+        extradatajson.status = "U".to_string();
+        // se convierte el Json a un String plano
+        let extradatajsontostring  = serde_json::to_string(&extradatajson).unwrap();          // se  reemplaza los " por \' en un string plano
+        let finalextrajson = str::replace(&extradatajsontostring.to_string(),"\"","'");
+
+        originaltoken.extra = Some(finalextrajson);
+        //remplazamos la metadata
+        self.tokens
+            .token_metadata_by_id
+            .as_mut()
+            .and_then(|by_id| by_id.insert(&token_id, &originaltoken));
+        
+        //transferir los nears
+        //TODO: entender como consultar si la transferencia fue exitosa
+        Promise::new(owner_value.clone().to_string()).transfer(pay as  u128);
+        //TODO: transferir la regalia del token
+        Promise::new(creator_id.clone()).transfer(roy as u128);
+        //TODO: transferir la regalia del token
+        Promise::new(MARKET_ACCOUNT.to_string()).transfer(gains as u128);
+        //transferir el nft
+        self.tokens
+            .internal_transfer_unguarded(&token_id, &owner_value.to_string(), buyer_id);
+
+        //cambiar el numero de nfts disponibles
+        self.n_token_on_sale -= 1;
+         
+        let ext : String  ="".to_string()+&extradatajson.tags.to_string();  
+        let graphdata = Thegraphstructure {
+            contract_name: NATIVO_ACCOUNT.to_string(),
+            collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
+            token_id : token_id.to_string(),
+            owner_id : buyer_id.to_string(),
+            title : "".to_string(),
+            description : "".to_string(),
+            media : "".to_string(),
+            creator : extradatajson.creator.to_string(),
+            price : extradatajson.price.to_string(),
+            status: extradatajson.status.to_string().to_string(), // sale status PENDIENTE
+            adressbidder: extradatajson.adressbidder.to_string(),
+            highestbid: extradatajson.highestbidder.to_string(),
+            lowestbid: extradatajson.lowestbidder.to_string(),
+            expires_at: extradatajson.expires_at.to_string(),
+            starts_at: extradatajson.starts_at.to_string(),
+            extra: ext,
+        };  
+        
+        let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string();
+        let _p = ext_nft::save_buy_ttg(
+        rett.clone(),
+        &MARKET_ACCOUNT, //  account_id as a parameter
+        env::attached_deposit(), // yocto NEAR to attach
+        25_000_000_000_000 // gas to attach
+        );
+
+    return rett;
+    }
+
+////////////////// METODO PARA VENDER 
+
+pub fn sell_token(&mut self, token_id: TokenId, price: u128,collection_id:String, collection: String ) -> String {
+        assert_eq!(
+            token_id.trim().parse::<u64>().unwrap() <= self.tokens.owner_by_id.len(),
+            true,
+            "ese token no existe "
+        );
+        //comprobar que el revendedor sea el owner
+        let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        assert_eq!(
+            env::signer_account_id() == owner_id,
+            true,
+            "no eres el dueño del token "
+        );
+        //obtener los metadatos de ese token
+        let mut originaltoken = self
+            .tokens
+            .token_metadata_by_id.as_ref()
+            .and_then(|by_id| by_id.get(&token_id))
+            .unwrap();
+        //se  reemplaza los ' por \" en un string plano                "'", "\""
+        let newextradata = str::replace(&originaltoken.extra.as_ref().unwrap().to_string(), "'", "\"");
+        //el string plano se convierte a JSon
+        let mut extradatajson: Extras = serde_json::from_str(&newextradata).unwrap();    
+        //Se modifica el json
+        assert_eq!(
+            extradatajson.status,
+            "A".to_string(),
+            "Lo sentimos,este token se encuentra en subasta y aun no termina!"
+        );
+        if price > 0 {
+            extradatajson.price =  price.to_string().clone();
+        }
+        extradatajson.status = "S".to_string();
+
+        // se convierte el Json a un String plano
+        let extradatajsontostring  = serde_json::to_string(&extradatajson).unwrap();          // se  reemplaza los " por \' en un string plano
+        let finalextrajson = str::replace(&extradatajsontostring.to_string(),"\"","'");
+      //    log!("{}",&finalextrajson.to_string());
+        originaltoken.extra = Some(finalextrajson);
+        //remplazamos la metadata
+        self.tokens
+            .token_metadata_by_id
+            .as_mut()
+            .and_then(|by_id| by_id.insert(&token_id, &originaltoken));
+        //cambiar el numero de nfts disponibles
+        self.n_token_on_sale += 1;
+        
+        let ext : String  ="".to_string()+&extradatajson.tags.to_string();
+          
+          let graphdata = Thegraphstructure {
+            contract_name: NATIVO_ACCOUNT.to_string(),
+            collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
+            token_id : token_id.to_string(),
+            owner_id : owner_id.to_string(),
+            title : "".to_string(),
+            description : "".to_string(),
+            media : "".to_string(),
+            creator : extradatajson.creator.to_string(),
+            price : extradatajson.price.to_string(),
+            status: extradatajson.status.to_string(), // sale status
+            adressbidder: extradatajson.adressbidder.to_string(),
+            highestbid: extradatajson.highestbidder.to_string(),
+            lowestbid: extradatajson.lowestbidder.to_string(),
+            expires_at: extradatajson.expires_at.to_string(),
+            starts_at: extradatajson.starts_at.to_string(),
+            extra: ext  ,
+            
+        };  
+        
+     let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
+    
+     let _p = ext_nft::save_sell_ttg(
+        rett.clone(),
+        &MARKET_ACCOUNT, //  account_id as a parameter
+        env::attached_deposit(), // yocto NEAR to attach
+        25_000_000_000_000 // gas to attach
+     );
+
+    return rett;
+    }
+
+////////////// QUITAR TOKEN DEL MARKETPLACE
+
+pub fn remove_token(&mut self, token_id: TokenId, collection_id:String, collection: String) -> String {
+        //comprobar que el token exista
+        assert_eq!(
+            token_id.trim().parse::<u64>().unwrap() < self.tokens.owner_by_id.len(),
+            true,
+            "ese token no existe "
+        );
+
+        //comprobar que el revendedor sea el owner
+        let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        assert_eq!(
+            env::signer_account_id() == owner_id,
+            true,
+            "no eres el dueño del token "
+        );
+         //obtener los metadatos de ese token
+         let mut originaltoken = self
+         .tokens
+         .token_metadata_by_id.as_ref()
+         .and_then(|by_id| by_id.get(&token_id))
+         .unwrap();
+      
+        //se  reemplaza los ' por \" en un string plano                "'", "\""
+        let newextradata = str::replace(&originaltoken.extra.as_ref().unwrap().to_string(), "'", "\"");
+        //el string plano se convierte a JSon
+        let mut extradatajson: Extras = serde_json::from_str(&newextradata).unwrap();    
+        //Se modifica el json
+     
+        extradatajson.status = "U".to_string();
+
+        // se convierte el Json a un String plano
+        let extradatajsontostring  = serde_json::to_string(&extradatajson).unwrap();          // se  reemplaza los " por \' en un string plano
+        let finalextrajson = str::replace(&extradatajsontostring.to_string(),"\"","'");
+    
+        originaltoken.extra = Some(finalextrajson);
+        //remplazamos la metadata
+        self.tokens
+            .token_metadata_by_id
+            .as_mut()
+            .and_then(|by_id| by_id.insert(&token_id, &originaltoken));
+
+        //cambiar el numero de nfts disponibles
+        self.n_token_on_sale += 1;
+        
+        let ext : String  ="".to_string()+&extradatajson.tags.to_string();  
+        let graphdata = Thegraphstructure {
+            contract_name: NATIVO_ACCOUNT.to_string(),
+            collection:collection.clone().to_string(),
+            collection_id: collection_id.clone().to_string(),
+            token_id : token_id.to_string(),
+            owner_id : owner_id.to_string(),
+            title : "".to_string(),
+            description : "".to_string(),
+            media : "".to_string(),
+            creator : extradatajson.creator.to_string(),
+            price : extradatajson.price.to_string(),
+            status: extradatajson.status.to_string(), // sale status
+            adressbidder: extradatajson.adressbidder.to_string(),
+            highestbid: extradatajson.highestbidder.to_string(),
+            lowestbid: extradatajson.lowestbidder.to_string(),
+            expires_at: extradatajson.expires_at.to_string(),
+            starts_at: extradatajson.starts_at.to_string(),
+            extra: ext  ,
+            
+        };  
+        
+        let rett : String = graphdata.contract_name.to_string()+","+&graphdata.token_id.to_string()+","+&graphdata.owner_id.to_string()+","+ &graphdata.title.to_string()+","+&graphdata.description.to_string()+","+ &graphdata.media.to_string()+","+&graphdata.creator.to_string()+","+&graphdata.price.to_string()+","+ &graphdata.status.to_string()+","+ &graphdata.adressbidder.to_string()+","+ &graphdata.highestbid.to_string()+","+ &graphdata.lowestbid.to_string()+","+&graphdata.expires_at.to_string()+","+ &graphdata.starts_at.to_string()+","+&graphdata.extra.to_string()+","+&graphdata.collection.to_string()+","+&graphdata.collection_id.to_string(); 
+        let _p = ext_nft::save_remove_ttg(
+        rett.clone(),
+        &MARKET_ACCOUNT, //  account_id as a parameter
+        env::attached_deposit(), // yocto NEAR to attach
+        25_000_000_000_000 // gas to attach
+        );
+    return rett;
+    }

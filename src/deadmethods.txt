@@ -351,6 +351,10 @@ pub fn get_ids_onsale(&self,tokens:u64) ->  Vec<u64> {
         metadata
     }
 
+            
+        // self.tokens
+        // .internal_transfer_unguarded(&token_id, &token_owner_id.to_string(), &token_owner_id.to_string());
+      
     
     */
    
