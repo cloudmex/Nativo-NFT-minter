@@ -551,19 +551,16 @@ impl Contract {
         //regresar el bid al singer anterior en caso de existir
         if status {
             if last_amount_bidder > 0 {
-                if env::signer_account_id() == owner_id{
-                    assert_eq!(
-                        env::signer_account_id() == owner_id,
-                        true,
-                        "no eres el dueño del token "
-                    );
-                    //transferir el nft
-                    self.tokens
-                    .internal_transfer_unguarded(&token_id, &owner_id.to_string(), &metadataextra.adressbidder.to_string());
-                    //cambiar el numero de nfts disponibles
-                    self.n_token_on_sale -= 1;
-
-                }
+                assert_eq!(
+                    env::signer_account_id() == owner_id,
+                    true,
+                    "no eres el dueño del token "
+                );
+                //transferir el nft
+                self.tokens
+                .internal_transfer_unguarded(&token_id, &owner_id.to_string(), &metadataextra.adressbidder.to_string());
+                //cambiar el numero de nfts disponibles
+                self.n_token_on_sale -= 1;
             }
         }else {
             if env::signer_account_id() == metadataextra.adressbidder {
@@ -583,7 +580,9 @@ impl Contract {
         //Se modifica el json
         extradatajson.adressbidder = "accountbidder".to_string();
         extradatajson.highestbidder = "notienealtos".to_string();
-        extradatajson.status = "U".to_string();
+        if status{
+            extradatajson.status = "U".to_string();
+        }
         // se convierte el Json a un String plano
         let extradatajsontostring  = serde_json::to_string(&extradatajson).unwrap();          // se  reemplaza los " por \' en un string plano
         let finalextrajson = str::replace(&extradatajsontostring.to_string(),"\"","'");
@@ -605,9 +604,9 @@ impl Contract {
             token_id : token_id.to_string(),
             owner_id : new_owner_id.clone().to_string(),
             last_owner_id: owner_id.to_string(),
-            title : "".to_string(),
-            description : "".to_string(),
-            media : "".to_string(),
+            title : "accountbidder".to_string(),
+            description : "notienealtos".to_string(),
+            media : "notienebajos".to_string(),
             creator : extradatajson.creator.to_string(),
             price : extradatajson.price.to_string(),
             status: extradatajson.status.to_string().to_string(), // sale status PENDIENTE
